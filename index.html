@@ -1,0 +1,363 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FormGuard Squat Coach</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;900&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0e0f11;
+    --panel: #17191c;
+    --line: #2a2d32;
+    --ink: #f2f3f5;
+    --muted: #8b9098;
+    --safe: #3ddc84;
+    --warn: #ffb020;
+    --danger: #ff4d4d;
+  }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) {
+      --bg: #f3f4f6;
+      --panel: #ffffff;
+      --line: #dfe2e6;
+      --ink: #121417;
+      --muted: #5f6570;
+      --safe: #13a857;
+      --warn: #c77a00;
+      --danger: #d92626;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font-family: Archivo, system-ui, sans-serif; line-height: 1.45;
+  }
+  main { max-width: 1040px; margin: 0 auto; padding: 32px 16px 56px; }
+  header { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 24px; }
+  .brand { font-weight: 900; font-size: clamp(1.8rem, 5vw, 2.6rem); letter-spacing: -0.03em; margin: 0; text-transform: uppercase; }
+  .brand span { color: var(--safe); }
+  .sub { color: var(--muted); margin: 2px 0 0; }
+  .mono { font-family: "JetBrains Mono", ui-monospace, monospace; }
+
+  .grid { display: grid; grid-template-columns: 1.35fr 1fr; gap: 16px; }
+  @media (max-width: 800px) { .grid { grid-template-columns: 1fr; } }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 18px; padding: 16px; }
+
+  .stage {
+    position: relative; aspect-ratio: 1; border-radius: 12px; overflow: hidden;
+    background: var(--bg); display: grid; place-items: center;
+    outline: 4px solid transparent; outline-offset: -4px; transition: outline-color .2s;
+  }
+  .stage canvas, .stage img { width: 100%; height: 100%; object-fit: contain; display: block; }
+  .stage .hint { color: var(--muted); text-align: center; padding: 24px; max-width: 320px; }
+  .stage.danger { outline-color: var(--danger); animation: pulse .6s ease-in-out infinite alternate; }
+  @keyframes pulse { from { outline-color: var(--danger); } to { outline-color: transparent; } }
+  .alert-banner {
+    position: absolute; left: 12px; right: 12px; top: 12px;
+    background: var(--danger); color: #fff; font-weight: 900; text-transform: uppercase;
+    letter-spacing: .04em; padding: 10px 14px; border-radius: 10px; text-align: center;
+    display: none;
+  }
+  .stage.danger .alert-banner { display: block; }
+
+  .row { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; align-items: center; }
+  .btn {
+    font: inherit; font-weight: 700; padding: 11px 18px; border-radius: 10px; border: none;
+    background: var(--safe); color: #06200f; cursor: pointer;
+  }
+  .btn.ghost { background: transparent; color: var(--ink); border: 1px solid var(--line); }
+  .btn:disabled { opacity: .4; cursor: default; }
+  label.toggle { display: inline-flex; gap: 6px; align-items: center; color: var(--muted); font-size: .9rem; margin-left: auto; cursor: pointer; }
+
+  .status-word { font-weight: 900; font-size: clamp(2rem, 6vw, 3rem); text-transform: uppercase; letter-spacing: -0.02em; margin: 0; line-height: 1.05; }
+  .status-tip { color: var(--muted); margin: 6px 0 20px; min-height: 2.9em; }
+  .k { font-size: .75rem; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); font-weight: 700; }
+
+  .meter { position: relative; height: 16px; border-radius: 999px; margin: 8px 0 6px;
+    background: linear-gradient(90deg, var(--safe) 0 45%, var(--warn) 45% 70%, var(--danger) 70% 100%); opacity: .9; }
+  .needle { position: absolute; top: -5px; width: 4px; height: 26px; border-radius: 2px; background: var(--ink); left: 0; transform: translateX(-2px); transition: left .12s linear; }
+  .meter-labels { display: flex; justify-content: space-between; font-size: .8rem; color: var(--muted); }
+
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 20px 0; }
+  .stat { border: 1px solid var(--line); border-radius: 12px; padding: 10px; }
+  .stat .v { font-size: 1.4rem; font-weight: 700; }
+
+  .bars .bar { margin-bottom: 10px; }
+  .bar-top { display: flex; justify-content: space-between; font-size: .9rem; margin-bottom: 4px; }
+  .track { height: 8px; border-radius: 999px; background: var(--line); overflow: hidden; }
+  .fill { height: 100%; width: 0; transition: width .12s linear; }
+
+  .log { list-style: none; padding: 0; margin: 8px 0 0; max-height: 140px; overflow: auto; font-size: .85rem; }
+  .log li { padding: 6px 0; border-bottom: 1px solid var(--line); color: var(--muted); }
+  .log li b { color: var(--danger); }
+  .note { color: var(--muted); font-size: .8rem; margin-top: 24px; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <div>
+      <h1 class="brand">Form<span>Guard</span></h1>
+      <p class="sub">Real-time squat form checker. Stand side-on to the camera, full body in frame.</p>
+    </div>
+  </header>
+
+  <div class="grid">
+    <section class="panel">
+      <div class="stage" id="stage">
+        <div class="hint" id="hint">Loading pose model…</div>
+        <div class="alert-banner">⚠ Unsafe form: stop and reset</div>
+      </div>
+      <div class="row">
+        <button class="btn" id="start" disabled>Loading…</button>
+        <label class="btn ghost" for="file">Check a photo</label>
+        <input type="file" id="file" accept="image/*" hidden>
+        <label class="toggle"><input type="checkbox" id="sound" checked> Sound alerts</label>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="k">Form status</div>
+      <p class="status-word" id="word">—</p>
+      <p class="status-tip" id="tip">Start the camera to begin a set.</p>
+
+      <div class="k">Risk level</div>
+      <div class="meter"><div class="needle" id="needle"></div></div>
+      <div class="meter-labels"><span>Safe</span><span>Caution</span><span>Danger</span></div>
+
+      <div class="stats">
+        <div class="stat"><div class="k">Good form</div><div class="v mono" id="s-good">—</div></div>
+        <div class="stat"><div class="k">Warnings</div><div class="v mono" id="s-warn">0</div></div>
+        <div class="stat"><div class="k">Set time</div><div class="v mono" id="s-time">0:00</div></div>
+      </div>
+
+      <div class="bars" id="bars"></div>
+
+      <div class="k" style="margin-top:16px">Warning log</div>
+      <ul class="log" id="log"><li>No warnings yet.</li></ul>
+    </section>
+  </div>
+
+  <p class="note">FormGuard is a class project built on a Teachable Machine pose model. It is not a substitute for a qualified coach or medical advice. If something hurts, stop.</p>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@1.3.1/dist/tf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@teachablemachine/pose@0.8.6/dist/teachablemachine-pose.min.js"></script>
+<script>
+  const DANGER_LABEL = 'Dangerous Squat';
+  const CAUTION = 0.45, DANGER = 0.7;   // thresholds on smoothed danger probability
+  const HOLD_MS = 400;                  // danger must persist this long before alerting
+  const COOLDOWN_MS = 2500;             // min gap between logged warnings
+
+  const $ = id => document.getElementById(id);
+  let model, webcam, ctx, canvas, running = false;
+  let labels = [], dangerIdx = 1;
+  let smooth = 0, dangerSince = null, alerting = false, lastWarn = 0;
+  let warnings = 0, frames = 0, goodFrames = 0, setStart = 0;
+  let audio;
+
+  async function init() {
+    try {
+      model = await tmPose.load('./model.json', './metadata.json');
+    } catch (e) {
+      $('hint').textContent = 'Could not load the model. Serve this folder over http (python3 -m http.server) instead of opening the file directly.';
+      console.error(e);
+      return;
+    }
+    labels = model.getClassLabels();
+    dangerIdx = Math.max(0, labels.indexOf(DANGER_LABEL));
+    labels.forEach((l, i) => $('bars').insertAdjacentHTML('beforeend', `
+      <div class="bar"><div class="bar-top"><span>${l}</span><span class="mono" id="p${i}">0%</span></div>
+      <div class="track"><div class="fill" id="f${i}" style="background:${i === dangerIdx ? 'var(--danger)' : 'var(--safe)'}"></div></div></div>`));
+    $('hint').textContent = 'Press Start set and step back until your whole body is visible.';
+    $('start').disabled = false;
+    $('start').textContent = 'Start set';
+  }
+
+  // ---- camera ----
+  async function start() {
+    const btn = $('start');
+    btn.disabled = true; btn.textContent = 'Starting…';
+    try {
+      webcam = new tmPose.Webcam(480, 480, true);
+      await webcam.setup();
+      await webcam.play();
+    } catch (e) {
+      $('hint').textContent = 'Camera unavailable or permission denied.';
+      btn.disabled = false; btn.textContent = 'Start set';
+      return;
+    }
+    mountCanvas(480);
+    resetSet();
+    running = true;
+    btn.disabled = false; btn.textContent = 'End set';
+    loop();
+  }
+
+  function stop() {
+    running = false;
+    if (webcam) webcam.stop();
+    setAlert(false);
+    $('start').textContent = 'Start set';
+    $('tip').textContent = frames ? `Set finished: ${pct(goodFrames / frames)} good form, ${warnings} warning${warnings === 1 ? '' : 's'}.` : 'Start the camera to begin a set.';
+  }
+
+  function mountCanvas(size) {
+    const stage = $('stage');
+    stage.querySelectorAll('canvas, img, .hint').forEach(n => n.remove());
+    canvas = document.createElement('canvas');
+    canvas.width = canvas.height = size;
+    ctx = canvas.getContext('2d');
+    stage.prepend(canvas);
+  }
+
+  function resetSet() {
+    smooth = 0; dangerSince = null; lastWarn = 0;
+    warnings = 0; frames = 0; goodFrames = 0; setStart = performance.now();
+    $('s-warn').textContent = '0';
+    $('log').innerHTML = '<li>No warnings yet.</li>';
+  }
+
+  async function loop() {
+    if (!running) return;
+    webcam.update();
+    const { pose, posenetOutput } = await model.estimatePose(webcam.canvas);
+    const preds = await model.predict(posenetOutput);
+    draw(webcam.canvas, pose);
+    update(preds, pose, true);
+    requestAnimationFrame(loop);
+  }
+
+  // ---- photo check ----
+  $('file').onchange = e => {
+    const file = e.target.files[0];
+    if (!file || !model) return;
+    if (running) stop();
+    const img = new Image();
+    img.onload = async () => {
+      const size = 480;
+      mountCanvas(size);
+      // center-crop to a square, matching how Teachable Machine framed the training webcam
+      const side = Math.min(img.width, img.height);
+      const src = document.createElement('canvas');
+      src.width = src.height = size;
+      src.getContext('2d').drawImage(img, (img.width - side) / 2, (img.height - side) / 2, side, side, 0, 0, size, size);
+      const { pose, posenetOutput } = await model.estimatePose(src);
+      const preds = await model.predict(posenetOutput);
+      smooth = preds[dangerIdx].probability; // no smoothing for a single frame
+      draw(src, pose);
+      update(preds, pose, false);
+      $('s-time').textContent = '—';
+    };
+    img.src = URL.createObjectURL(file);
+    e.target.value = '';
+  };
+
+  // ---- rendering + logic ----
+  function draw(source, pose) {
+    ctx.drawImage(source, 0, 0, canvas.width, canvas.height);
+    if (!pose) return;
+    const color = smooth >= DANGER ? '#ff4d4d' : smooth >= CAUTION ? '#ffb020' : '#3ddc84';
+    tmPose.drawSkeleton(pose.keypoints, 0.5, ctx, 4, color);
+    tmPose.drawKeypoints(pose.keypoints, 0.5, ctx, 5, color, '#000');
+  }
+
+  function update(preds, pose, live) {
+    preds.forEach((p, i) => {
+      $('p' + i).textContent = pct(p.probability);
+      $('f' + i).style.width = (p.probability * 100) + '%';
+    });
+
+    // side-on squats hide half the joints, so only require a loose majority; photos always get a verdict
+    const visible = !live || (pose && pose.keypoints.filter(k => k.score > 0.3).length >= 7);
+    const raw = preds[dangerIdx].probability;
+    if (live) smooth = smooth * 0.75 + raw * 0.25;
+    $('needle').style.left = (smooth * 100) + '%';
+
+    const word = $('word'), tip = $('tip');
+    if (!visible) {
+      word.textContent = 'No body'; word.style.color = 'var(--muted)';
+      tip.textContent = 'Step back so your head, hips, knees and ankles are all in frame.';
+      setAlert(false); dangerSince = null;
+      return;
+    }
+
+    if (live) {
+      frames++;
+      if (smooth < CAUTION) goodFrames++;
+      $('s-good').textContent = pct(goodFrames / frames);
+      const t = Math.floor((performance.now() - setStart) / 1000);
+      $('s-time').textContent = `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`;
+    } else {
+      $('s-good').textContent = smooth < CAUTION ? '✓' : '✕';
+    }
+
+    if (smooth >= DANGER) {
+      word.textContent = 'Danger'; word.style.color = 'var(--danger)';
+      tip.textContent = 'Knees caving, back rounding or heels lifting? Rack it, reset your stance and brace before the next rep.';
+      const now = performance.now();
+      if (!live) { setAlert(true); return; }
+      dangerSince ??= now;
+      if (now - dangerSince >= HOLD_MS) {
+        setAlert(true);
+        if (now - lastWarn > COOLDOWN_MS) warn(now);
+      }
+    } else {
+      dangerSince = null;
+      setAlert(false);
+      if (smooth >= CAUTION) {
+        word.textContent = 'Caution'; word.style.color = 'var(--warn)';
+        tip.textContent = 'Form is slipping. Chest up, knees tracking over toes, weight through mid-foot.';
+      } else {
+        word.textContent = 'Safe'; word.style.color = 'var(--safe)';
+        tip.textContent = 'Good form. Keep a neutral spine and controlled tempo.';
+      }
+    }
+  }
+
+  function setAlert(on) {
+    if (on === alerting) return;
+    alerting = on;
+    $('stage').classList.toggle('danger', on);
+  }
+
+  function warn(now) {
+    lastWarn = now;
+    warnings++;
+    $('s-warn').textContent = warnings;
+    const t = Math.floor((now - setStart) / 1000);
+    const log = $('log');
+    if (warnings === 1) log.innerHTML = '';
+    log.insertAdjacentHTML('afterbegin', `<li><b>Unsafe squat</b> at <span class="mono">${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}</span> (${pct(smooth)} risk)</li>`);
+    if ($('sound').checked) beep();
+    if (navigator.vibrate) navigator.vibrate(200);
+  }
+
+  function beep() {
+    try {
+      audio ??= new (window.AudioContext || window.webkitAudioContext)();
+      [0, 0.18].forEach(offset => {
+        const o = audio.createOscillator(), g = audio.createGain();
+        o.type = 'square'; o.frequency.value = 880;
+        g.gain.setValueAtTime(0.15, audio.currentTime + offset);
+        g.gain.exponentialRampToValueAtTime(0.001, audio.currentTime + offset + 0.14);
+        o.connect(g).connect(audio.destination);
+        o.start(audio.currentTime + offset); o.stop(audio.currentTime + offset + 0.15);
+      });
+    } catch (e) { /* audio not available */ }
+  }
+
+  const pct = x => Math.round(x * 100) + '%';
+
+  $('start').onclick = () => {
+    audio ??= new (window.AudioContext || window.webkitAudioContext)(); // unlock audio on user gesture
+    running ? stop() : start();
+  };
+
+  init();
+</script>
+</body>
+</html>
