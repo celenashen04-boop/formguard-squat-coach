@@ -50,7 +50,7 @@
     background: var(--bg); display: grid; place-items: center;
     outline: 4px solid transparent; outline-offset: -4px; transition: outline-color .2s;
   }
-  .stage canvas, .stage img { width: 100%; height: 100%; object-fit: contain; display: block; }
+  .stage canvas { width: 100%; height: 100%; object-fit: contain; display: block; }
   .stage .hint { color: var(--muted); text-align: center; padding: 24px; max-width: 320px; }
   .stage.danger { outline-color: var(--danger); animation: pulse .6s ease-in-out infinite alternate; }
   @keyframes pulse { from { outline-color: var(--danger); } to { outline-color: transparent; } }
@@ -113,8 +113,6 @@
       </div>
       <div class="row">
         <button class="btn" id="start" disabled>Loading…</button>
-        <label class="btn ghost" for="file">Check a photo</label>
-        <input type="file" id="file" accept="image/*" hidden>
         <label class="toggle"><input type="checkbox" id="sound" checked> Sound alerts</label>
       </div>
     </section>
@@ -207,7 +205,7 @@
 
   function mountCanvas(size) {
     const stage = $('stage');
-    stage.querySelectorAll('canvas, img, .hint').forEach(n => n.remove());
+    stage.querySelectorAll('canvas, .hint').forEach(n => n.remove());
     canvas = document.createElement('canvas');
     canvas.width = canvas.height = size;
     ctx = canvas.getContext('2d');
@@ -227,34 +225,9 @@
     const { pose, posenetOutput } = await model.estimatePose(webcam.canvas);
     const preds = await model.predict(posenetOutput);
     draw(webcam.canvas, pose);
-    update(preds, pose, true);
+    update(preds, pose);
     requestAnimationFrame(loop);
   }
-
-  // ---- photo check ----
-  $('file').onchange = e => {
-    const file = e.target.files[0];
-    if (!file || !model) return;
-    if (running) stop();
-    const img = new Image();
-    img.onload = async () => {
-      const size = 480;
-      mountCanvas(size);
-      // center-crop to a square, matching how Teachable Machine framed the training webcam
-      const side = Math.min(img.width, img.height);
-      const src = document.createElement('canvas');
-      src.width = src.height = size;
-      src.getContext('2d').drawImage(img, (img.width - side) / 2, (img.height - side) / 2, side, side, 0, 0, size, size);
-      const { pose, posenetOutput } = await model.estimatePose(src);
-      const preds = await model.predict(posenetOutput);
-      smooth = preds[dangerIdx].probability; // no smoothing for a single frame
-      draw(src, pose);
-      update(preds, pose, false);
-      $('s-time').textContent = '—';
-    };
-    img.src = URL.createObjectURL(file);
-    e.target.value = '';
-  };
 
   // ---- rendering + logic ----
   function draw(source, pose) {
@@ -265,16 +238,16 @@
     tmPose.drawKeypoints(pose.keypoints, 0.5, ctx, 5, color, '#000');
   }
 
-  function update(preds, pose, live) {
+  function update(preds, pose) {
     preds.forEach((p, i) => {
       $('p' + i).textContent = pct(p.probability);
       $('f' + i).style.width = (p.probability * 100) + '%';
     });
 
-    // side-on squats hide half the joints, so only require a loose majority; photos always get a verdict
-    const visible = !live || (pose && pose.keypoints.filter(k => k.score > 0.3).length >= 7);
+    // side-on squats hide half the joints, so only require a loose majority
+    const visible = (pose && pose.keypoints.filter(k => k.score > 0.3).length >= 7);
     const raw = preds[dangerIdx].probability;
-    if (live) smooth = smooth * 0.75 + raw * 0.25;
+    smooth = smooth * 0.75 + raw * 0.25;
     $('needle').style.left = (smooth * 100) + '%';
 
     const word = $('word'), tip = $('tip');
@@ -285,21 +258,16 @@
       return;
     }
 
-    if (live) {
-      frames++;
-      if (smooth < CAUTION) goodFrames++;
-      $('s-good').textContent = pct(goodFrames / frames);
-      const t = Math.floor((performance.now() - setStart) / 1000);
-      $('s-time').textContent = `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`;
-    } else {
-      $('s-good').textContent = smooth < CAUTION ? '✓' : '✕';
-    }
+    frames++;
+    if (smooth < CAUTION) goodFrames++;
+    $('s-good').textContent = pct(goodFrames / frames);
+    const t = Math.floor((performance.now() - setStart) / 1000);
+    $('s-time').textContent = `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`;
 
     if (smooth >= DANGER) {
       word.textContent = 'Danger'; word.style.color = 'var(--danger)';
       tip.textContent = 'Knees caving, back rounding or heels lifting? Rack it, reset your stance and brace before the next rep.';
       const now = performance.now();
-      if (!live) { setAlert(true); return; }
       dangerSince ??= now;
       if (now - dangerSince >= HOLD_MS) {
         setAlert(true);
